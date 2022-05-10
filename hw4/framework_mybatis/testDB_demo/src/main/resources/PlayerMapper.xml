@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="mapper.PlayerMapper">
+    <insert id="insert" parameterType="java.util.List">
+        INSERT INTO player(team_id, uniform_num, first_name, last_name, mpg, ppg, rpg, apg, spg, bpg) VALUES
+        <foreach item="item" collection="list" separator=",">
+            (
+             #{item.team_id},
+            #{item.uniform_num},
+            #{item.first_name},
+            #{item.last_name},
+            #{item.mpg},
+            #{item.ppg},
+            #{item.rpg},
+            #{item.apg},
+            #{item.spg},
+            #{item.bpg}
+             )
+        </foreach>
+    </insert>
+    <select id="query1" resultType="mapper.Player">
+        SELECT * FROM player
+        <where>
+            <if test="use_mpg == 1">
+                (mpg BETWEEN #{min_mpg} AND #{max_mpg})
+            </if>
+            <if test="use_ppg == 1">
+                AND (ppg BETWEEN #{min_ppg} AND #{max_ppg})
+            </if>
+            <if test="use_rpg == 1">
+                AND (rpg BETWEEN #{min_rpg} AND #{max_rpg})
+            </if>
+            <if test="use_apg == 1">
+                AND (apg BETWEEN #{min_apg} AND #{max_apg})
+            </if>
+            <if test="use_spg == 1">
+                AND (spg BETWEEN #{min_spg} AND #{max_spg})
+            </if>
+            <if test="use_bpg == 1">
+                AND (bpg BETWEEN #{min_bpg} AND #{max_bpg})
+            </if>
+        </where>
+    </select>
+    <select id="query3" resultType="mapper.Player">
+        SELECT player.* FROM player, team
+        WHERE player.team_id = team.team_id AND team.name = #{team_name}
+        ORDER BY player.ppg DESC
+    </select>
+    <select id="query4" resultType="mapper.Player">
+        SELECT player.* FROM player, team, color, state
+        WHERE player.team_id = team.team_id AND team.color_id = color.color_id AND team.state_id = state.state_id
+          AND state.name = #{team_state} AND color.name = #{team_color}
+    </select>
+    <resultMap id="query5Map" type="mapper.Player">
+        <id property="player_id" column="player_id"></id>
+        <result property="team_id" column="team_id"></result>
+        <result property="uniform_num" column="uniform_num"></result>
+        <result property="first_name" column="first_name"></result>
+        <result property="last_name" column="last_name"></result>
+        <result property="mpg" column="mpg"></result>
+        <result property="ppg" column="ppg"></result>
+        <result property="rpg" column="rpg"></result>
+        <result property="apg" column="apg"></result>
+        <result property="spg" column="spg"></result>
+        <result property="bpg" column="bpg"></result>
+        <association property="team" javaType="mapper.Team">
+            <id property="team_id" column="team_id"></id>
+            <result property="name" column="name"></result>
+            <result property="state_id" column="state_id"></result>
+            <result property="color_id" column="color_id"></result>
+            <result property="wins" column="wins"></result>
+            <result property="losses" column="losses"></result>
+        </association>
+    </resultMap>
+    <select id="query5" resultMap="query5Map">
+        SELECT * FROM player LEFT JOIN team ON player.team_id = team.team_id
+        WHERE team.wins > #{num_wins}
+    </select>
+    <update id="initPlayerTable">
+        DROP TABLE if EXISTS player;
+        CREATE TABLE player
+        (
+            player_id serial primary key not null,
+            team_id integer not null,
+            uniform_num integer not null,
+            first_name varchar (50) not null,
+            last_name varchar (50) not null,
+            mpg integer not null,
+            ppg integer not null,
+            rpg integer not null,
+            apg integer not null,
+            spg real not null,
+            bpg real not null
+        );
+    </update>
+</mapper>

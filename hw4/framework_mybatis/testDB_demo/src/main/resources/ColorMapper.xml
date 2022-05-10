@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="mapper.ColorMapper">
+    <insert id="insert" parameterType="java.util.List">
+        INSERT INTO color(name) VALUES
+        <foreach item="item" collection="list" separator=",">
+            (#{item.name})
+        </foreach>
+    </insert>
+    <update id="initColorTable">
+        DROP TABLE if EXISTS color;
+        CREATE TABLE color
+        (
+            color_id serial primary key not null,
+            name     varchar(50) not null
+        );
+    </update>
+</mapper>

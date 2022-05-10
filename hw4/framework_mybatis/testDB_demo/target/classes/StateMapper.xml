@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="mapper.StateMapper">
+    <insert id="insert" parameterType="java.util.List">
+        INSERT INTO state (name) VALUES
+        <foreach item="item" collection="list" separator=",">
+            (#{item.name})
+        </foreach>
+    </insert>
+    <update id="initStateTable">
+        DROP TABLE if EXISTS state;
+        CREATE TABLE state
+        (
+            state_id serial primary key not null,
+            name varchar(50) not null
+        );
+    </update>
+</mapper>

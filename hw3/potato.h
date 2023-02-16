@@ -1,20 +1,22 @@
 typedef struct potato_t {
     /* record hops and socket of ring master */
     int remainingHops;
-    int pathCount; //next path will be put at this idx
+    // next path will be put at idx pathCount
+    int pathCount; 
     int path[512];
     int isAlive;
 } potato;
 
-//initialize by ring master
+// initialization done by ring master
 void initPotato(potato * p, int hops) {
     for (int i = 0; i < 512; i ++) {
         p->path[i] = 0;
     }
     p->remainingHops = hops;
-    p->pathCount = 0;//p->pathCount = 1;//next will be placed at path[1]; 
+    p->pathCount = 0;
     p->isAlive = 1;
 }
+
 /**
  * @brief modify the information record in potato, and the
  * potato will be adjusted per each pass time
@@ -23,6 +25,7 @@ void initPotato(potato * p, int hops) {
  */
 void adjustPotato(potato * p, int nextPlayer) {
     p->remainingHops --;
-    p->path[p->pathCount] = nextPlayer; //add next player into path
+    // add next player into path
+    p->path[p->pathCount] = nextPlayer; 
     p->pathCount ++;
 }

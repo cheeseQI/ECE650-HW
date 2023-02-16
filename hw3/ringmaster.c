@@ -12,8 +12,10 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#define PENDINGQUEUE 512  //how many pending connections queue will hold before kernel reject the new one
+#define PENDINGQUEUE 512  
 #define STOPSENDFLAG -1
+
+
 /**
  * @brief get sockaddr(support IPv4 and IPv6). Referred from Beej's Guide
  * 
@@ -27,6 +29,8 @@ void *get_in_addr(struct sockaddr *sa) {
 
     return &(((struct sockaddr_in6*)sa)->sin6_addr); //ipv6
 }
+
+
 /**
  * @brief display the result for the game
  * 
@@ -39,6 +43,8 @@ void displayResult(potato * p) {
     }
     printf("%d\n", p->path[p->pathCount - 2]);
 }
+
+
 /**
  * @brief ringmaster shut down the game, by sending dead potato to all players
  * 
@@ -49,13 +55,16 @@ void displayResult(potato * p) {
  */
 void shutDownGame(int fdmax, int listen_fd, fd_set flush_fds, potato * p) {
     p->isAlive = 0;
-    for(int j = 0; j <= fdmax; j ++) { //notify all players with dead potato
+    // notify all players with dead potato
+    for(int j = 0; j <= fdmax; j ++) { 
         if (FD_ISSET(j, &flush_fds)) {
             if (j == listen_fd) continue;
             if (send(j, p, sizeof(potato), 0) == -1) perror("send");
         }
     }
 }
+
+
 /**
  * @brief make the ringmaster as a server, binding to a servive port
  * 
@@ -64,14 +73,17 @@ void shutDownGame(int fdmax, int listen_fd, fd_set flush_fds, potato * p) {
  */
 int bindAsServer(struct addrinfo * masterInfo) {
     int sock;
-    int FLAG = 1; //indicating non-zero is true
+    // indicating non-zero is true in my system
+    int FLAG = 1; 
     struct addrinfo * p;
-    // loop through all the results and bind the first usable ip::port we can use
+    // loop through all the addresses and bind the first usable ip::port we can use
     for(p = masterInfo; p != NULL; p = p->ai_next) {
+        // create an unbound socket and return a fd
         if ((sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
             perror("socket failed: ");
             continue;
         }
+        // set option for socket, it is socket(not tcp) level, can resuse(so restart at same port without throwing error)
         if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &FLAG, sizeof(int)) == -1) {
             perror("setsockopt failed: ");
             exit(EXIT_FAILURE);
@@ -83,10 +95,12 @@ int bindAsServer(struct addrinfo * masterInfo) {
         }
         break;
     }
-    if (p == NULL) { //no available binding target
+    // no available binding target
+    if (p == NULL) { 
         perror("server failed: ");
         exit(1);
     }
+    // start listen, note that kernel will reject the new connection if pending connections exceed PENDINGQUEUE
     if (listen(sock, PENDINGQUEUE) == -1) {
         perror("listen failed: ");
         exit(1);
@@ -94,6 +108,8 @@ int bindAsServer(struct addrinfo * masterInfo) {
     freeaddrinfo(masterInfo);
     return sock;
 }
+
+
 /**
  * @brief notify all players about their neibour information, and player information
  * 
@@ -113,34 +129,41 @@ void initalNotification(int playersNum, int fdmax, fd_set read_fds, int listen_f
             leftPort = playerId == 0 ? ports[playersNum - 1] : ports[playerId - 1];
             rightAddr = playerId == playersNum - 1 ? addrArray[0] : addrArray[playerId + 1];
             rightPort = playerId == playersNum - 1 ? ports[0] : ports[playerId + 1];
-            send(k, &leftPort, sizeof(leftPort), 0); //neighbour addr info
+            // neighbour addr info
+            send(k, &leftPort, sizeof(leftPort), 0); 
             send(k, &rightPort, sizeof(rightPort), 0);
             send(k, &leftAddr, sizeof(leftAddr), 0);
             send(k, &rightAddr, sizeof(rightAddr), 0);
-            send(k, &playerId, sizeof(playerId), 0); //player info
+            // player info
+            send(k, &playerId, sizeof(playerId), 0); 
             send(k, &playersNum, sizeof(playersNum), 0); 
             playerId ++;
         }
     }
 }
-//get random, since the time is short, the rand is almost same
+
+
+// get random, since the time is short, the rand is almost same
 int getRandomPlayer(int playersNum) {
     srand((unsigned int) time(NULL));
     return rand() % playersNum;
 }
 
-//sample input: ./ringmaster 7300 2 2
+
+// sample input: ./ringmaster 7300 2 2
 int main(int argc, char *argv[]) {
     if (checkRingArgument(argc, argv)) {
         return 1;
     }
-    potato p; //game variables
+    potato p; 
+    // game variables
     const char * port = argv[1]; 
     int playersNum = atoi(argv[2]);
     int hopsNum = atoi(argv[3]);
     int playerfdList[playersNum];
     int currPlayer = 0; 
-    int listen_fd, service_fd; //socket variables
+    // socket variables
+    int listen_fd, service_fd; 
     struct addrinfo hints, *masterInfo;
     int rv;
     fd_set flush_fds;
@@ -150,52 +173,60 @@ int main(int argc, char *argv[]) {
     struct sockaddr_storage addrArray[playersNum];
     in_port_t ports[playersNum];
 
-    /*** start build server***/
+    /*** start building server ***/
     memset(&hints, 0, sizeof hints);
+    // support both ipv4 and ipv6
     hints.ai_family = AF_UNSPEC;
+    // tcp stream socket
     hints.ai_socktype = SOCK_STREAM;
+    // fill in my ip
     hints.ai_flags = AI_PASSIVE;
+    // get info according to port and hints, store into masterInfo
     if ((rv = getaddrinfo(NULL, port, &hints, &masterInfo)) != 0) {
         perror("cannot get hostname correctly");
         return EXIT_FAILURE;
     }
     printf("Potato Ringmaster\nPlayers = %d\nHops = %d\n", playersNum, hopsNum);
     listen_fd = bindAsServer(masterInfo);
-    
-    FD_ZERO(&flush_fds); //Listen and build service
+    FD_ZERO(&flush_fds); 
     FD_ZERO(&read_fds);
     FD_SET(listen_fd, &flush_fds);
     fdmax = listen_fd;
-    while(1) {                 
-        read_fds = flush_fds; //flush last status
-        if (playersNum == 0) {//all players had disconnected
+    /*** main accept loop ***/
+    while(1) {  
+        // flush last status               
+        read_fds = flush_fds; 
+        // all players had disconnected then close
+        if (playersNum == 0) { 
             close(listen_fd);
             return EXIT_SUCCESS;
         }
-        if (currPlayer == playersNum) { //enough players->trigger game
+        // enough players -> trigger game
+        if (currPlayer == playersNum) { 
             int beginner = getRandomPlayer(playersNum);
             initalNotification(playersNum, fdmax, read_fds, listen_fd, ports, addrArray);
             initPotato(&p, hopsNum);
-            if (hopsNum == 0) { //corner case: hops = 0
+            if (hopsNum == 0) {
                 shutDownGame(fdmax, listen_fd, flush_fds, &p);
-                currPlayer = STOPSENDFLAG; //stop giving potato in the future.
+                // stop giving potato in the future.
+                currPlayer = STOPSENDFLAG;
                 continue;
             }
-            //adjustPotato(&p, beginner);
             p.path[p.pathCount] = beginner;
             p.pathCount ++;
             if (send(playerfdList[beginner], &p, sizeof(potato), 0) == -1) perror("send");
             currPlayer = STOPSENDFLAG;
             printf("Ready to start the game, sending potato to player %d\n", beginner);
         }
-
+        // start blocking select
         if (select(fdmax + 1, &read_fds, NULL, NULL, NULL) == -1) {
             perror("select");
             return EXIT_FAILURE;
         }
-        for(int i = 0; i <= fdmax; i ++) { //when observed updates, find target fd
+        // when observed updates, find target fd
+        for(int i = 0; i <= fdmax; i ++) { 
             if (FD_ISSET(i, &read_fds)) {
-                if (i == listen_fd) { //update from listening socket, create service socket for acccepting
+                if (i == listen_fd) { // update from listening socket, create service socket for acccepting
                     socklen_t addrLen = sizeof(playerAddr);
                     memset(&playerAddr, 0, addrLen);
                     service_fd = accept(listen_fd, (struct sockaddr *)&playerAddr,  &addrLen);
@@ -211,7 +242,8 @@ int main(int argc, char *argv[]) {
                         currPlayer ++;
                     }
                 } else { //update from service socket
-                    if ((recv(i, &p, sizeof(p), 0)) <= 0) { //got any error, or connection is closed by the player
+                    // got any error, or connection is closed by the player
+                    if ((recv(i, &p, sizeof(p), 0)) <= 0) { 
                         close(i);
                         FD_CLR(i, &flush_fds);
                         playersNum --;

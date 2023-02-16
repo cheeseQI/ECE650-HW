@@ -190,6 +190,7 @@ int main(int argc, char *argv[]) {
     listen_fd = bindAsServer(masterInfo);
     FD_ZERO(&flush_fds); 
     FD_ZERO(&read_fds);
+    // Add listen_fd to the set.
     FD_SET(listen_fd, &flush_fds);
     fdmax = listen_fd;
     /*** main accept loop ***/
@@ -218,7 +219,7 @@ int main(int argc, char *argv[]) {
             currPlayer = STOPSENDFLAG;
             printf("Ready to start the game, sending potato to player %d\n", beginner);
         }
-        // start blocking select
+        // start blocking select, any changes will be updated to read_fds
         if (select(fdmax + 1, &read_fds, NULL, NULL, NULL) == -1) {
             perror("select");
             return EXIT_FAILURE;
@@ -226,7 +227,8 @@ int main(int argc, char *argv[]) {
         // when observed updates, find target fd
         for(int i = 0; i <= fdmax; i ++) { 
             if (FD_ISSET(i, &read_fds)) {
-                if (i == listen_fd) { // update from listening socket, create service socket for acccepting
+                if (i == listen_fd) { 
+                    // update from listening socket, create a service socket for acccepting
                     socklen_t addrLen = sizeof(playerAddr);
                     memset(&playerAddr, 0, addrLen);
                     service_fd = accept(listen_fd, (struct sockaddr *)&playerAddr,  &addrLen);
@@ -241,8 +243,8 @@ int main(int argc, char *argv[]) {
                         fdmax = fdmax > service_fd ? fdmax : service_fd;
                         currPlayer ++;
                     }
-                } else { //update from service socket
-                    // got any error, or connection is closed by the player
+                } else { 
+                    //update from service socket: got any error, or connection is closed by the player
                     if ((recv(i, &p, sizeof(p), 0)) <= 0) { 
                         close(i);
                         FD_CLR(i, &flush_fds);

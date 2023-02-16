@@ -12,6 +12,7 @@
 #include <arpa/inet.h>
 #define pendingQueue 3
 
+
 /**
  * @brief get sockaddr(support IPv4 and IPv6). Referred from Beej's Guide
  * 
@@ -24,15 +25,18 @@ void *get_in_addr(struct sockaddr *sa) {
     }
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
-//get random, since the time is short, the rand is almost same
-int getRandomPlayer(int playersNum) { //need to be simplified with master!!!!
+
+
+int getRandomPlayer(int playersNum) { 
     srand((unsigned int) time(NULL));
     return rand() % playersNum;
 }
+
+
 /**
- * @brief make player as a client, connecting to a server
+ * @brief serve as a client, connecting to a server
  * 
- * @param targetIP address information containing ip/port/type
+ * @param targetIP address information of server containing ip/port/type
  * @return int file descriptor for this service socket
  */
 int connectToServer(struct addrinfo * targetIP) {
@@ -50,7 +54,7 @@ int connectToServer(struct addrinfo * targetIP) {
         }
         break;
     }
-    if (p == NULL) { //no available binding target
+    if (p == NULL) {
         perror("connect to serverfailed: ");
         exit(EXIT_FAILURE);
     }
@@ -58,6 +62,8 @@ int connectToServer(struct addrinfo * targetIP) {
     freeaddrinfo(targetIP);
     return sock;
 }
+
+
 /**
  * @brief make player as a server, binding to a servive port
  * 
@@ -103,12 +109,13 @@ int main(int argc, char *argv[]) {
         fprintf(stderr,"usage: client hostname portname\n");
         exit(1);
     }
-    int playerId, playerNums; //game variable
+    int playerId, playerNums; 
     potato p;
     memset(&p, 0, sizeof(p));
-    int rv; //socket variable
-    fd_set flush_fds; // manage fds
-    fd_set read_fds; // fds for select()
+    int rv; 
+    fd_set flush_fds;
+    // fds for select()
+    fd_set read_fds; 
     int fdmax;
     int sockRingFd, nextPlayerFd, listenerFd;  
     struct addrinfo hints, server_hints, neigbour_hints,*masterInfo, *nextInfo, *selfInfo;
@@ -116,7 +123,7 @@ int main(int argc, char *argv[]) {
     char leftBuffer[INET6_ADDRSTRLEN], rightBuffer[INET6_ADDRSTRLEN];
     in_port_t leftPort, rightPort;
 
-    /*** binding  phase ***/
+    /*** start building server ***/
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
@@ -127,18 +134,18 @@ int main(int argc, char *argv[]) {
     server_hints.ai_family = AF_UNSPEC;
     server_hints.ai_socktype = SOCK_STREAM;
     server_hints.ai_flags = AI_PASSIVE;
-    if ((rv = getaddrinfo(NULL, "0", &server_hints, &selfInfo)) != 0) { //get hostname with free port into ip form and store into plist
+    if ((rv = getaddrinfo(NULL, "0", &server_hints, &selfInfo)) != 0) { 
         perror("cannot get addrinfo for myself");
         return EXIT_FAILURE;
     }
     listenerFd = bindAsServer(selfInfo);
-    /*** connect to ringMaster phase ***/
+    /*** connect to ringMaster ***/
     struct sockaddr addrWithPort;
     socklen_t adLen = sizeof(addrWithPort);
     memset(&addrWithPort, 0, adLen);
     getsockname(listenerFd, &addrWithPort, &adLen);
     in_port_t myPort = ((struct sockaddr_in *) &addrWithPort)->sin_port;
-    if ((rv = getaddrinfo(argv[1], argv[2], &hints, &masterInfo)) != 0) { //servinfo list is the ip list, if set port to 0, it will be default
+    if ((rv = getaddrinfo(argv[1], argv[2], &hints, &masterInfo)) != 0) { 
         perror("cannot get addrinfo for ring master");
         return EXIT_FAILURE;
     }
@@ -161,16 +168,18 @@ int main(int argc, char *argv[]) {
     fdmax = listenerFd > sockRingFd ? listenerFd : sockRingFd;
     int service_fd;
     while (1) {
-        read_fds = flush_fds; //flush last status
+        read_fds = flush_fds;
         if (select(fdmax+1, &read_fds, NULL, NULL, NULL) == -1) {
             perror("select");
             return EXIT_FAILURE;
         }
         for (int i = 0; i <= fdmax; i ++) {
             if (FD_ISSET(i, &read_fds)) {
-                if (i == sockRingFd) { //From ring master
+                // From ring master, or self-server, or neighbour player server
+                if (i == sockRingFd) { 
                     recv(i, &p, sizeof(p), 0);
-                    if (!p.isAlive) { //dead potato signal->close all socket
+                    // Dead potato signal->close all socket
+                    if (!p.isAlive) { 
                         for (int i = 0; i <= fdmax; i ++) {
                             if (FD_ISSET(i, &read_fds)) {
                                 close(i);
@@ -178,14 +187,15 @@ int main(int argc, char *argv[]) {
                         } 
                         return EXIT_SUCCESS;
                     }
-                } else if (i == listenerFd) { //From listener
+                } else if (i == listenerFd) {
                     socklen_t addrLen = sizeof(side);
                     memset(&side, 0, addrLen);
                     service_fd = accept(listenerFd, (struct sockaddr *)&side,  &addrLen);
                     recv(service_fd, &p, sizeof(p), 0);
                     FD_SET(service_fd, &flush_fds);
                     fdmax = fdmax > service_fd ? fdmax : service_fd;
-                } else {           //From service socket->must be potato from other player or error/close
+                } else {    
+                    // potato from other player or error/close signal    
                     if (recv(i, &p, sizeof(p), 0) <= 0) {
                         close(i);
                         FD_CLR(i, &flush_fds);
@@ -193,7 +203,7 @@ int main(int argc, char *argv[]) {
                     continue;
                 }
                 /*** send potato out ***/
-                int next = getRandomPlayer(2); //0 or 1
+                int next = getRandomPlayer(2);
                 int nextId;
                 if (next == 0) {
                     nextId = playerId - 1 < 0 ? playerNums - 1 : playerId - 1;
@@ -202,7 +212,7 @@ int main(int argc, char *argv[]) {
                     nextId = playerId + 1 >= playerNums ? 0 : playerId + 1;
                     adjustPotato(&p, nextId);
                 }
-                if (p.remainingHops == 0) { //decide end or not
+                if (p.remainingHops == 0) {
                     printf("I'm it\n");
                     send(sockRingFd, &p, sizeof(p), 0);
                     break;
@@ -216,7 +226,8 @@ int main(int argc, char *argv[]) {
                     return EXIT_FAILURE;
                 }
                 nextPlayerFd = connectToServer(nextInfo);
-                send(nextPlayerFd, &p, sizeof(p), 0); //must send out(connect to server) no matter what changes
+                // must send out(connect to server) no matter what changes
+                send(nextPlayerFd, &p, sizeof(p), 0); 
                 FD_SET(nextPlayerFd, &flush_fds);
                 fdmax = fdmax > nextPlayerFd ? fdmax : nextPlayerFd;
                 printf("Sending potato to %d\n", nextId);
